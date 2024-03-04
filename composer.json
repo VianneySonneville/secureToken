@@ -1,0 +1,15 @@
+{
+    "name": "vianney/token-generator",
+    "autoload": {
+        "psr-4": {
+            "Vianney\\TokenGenerator\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "vianney.sonneville",
+            "email": "vianney.sonneville@unova.fr"
+        }
+    ],
+    "require": {}
+}

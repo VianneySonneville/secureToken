@@ -1,24 +1,58 @@
 <?php
 
 // Get sender domain , if is fleco_unova who fetch request ok else no
+namespace SecureToken;
 
-class secureToken{
-  private static $secretKey = 'vianney'; 
-  private static $secretIv = 'www.vianney.fr';
-  private static $encryptMethod = "AES-256-CBC"; 
+class SecureToken{
+  private $firstKey;
+  private $secondKey;
+  private $secret = 'www.vianney.fr';
+  private $encryptMethod ="aes-256-cbc";
+  private $sha2len = 32;
+
+  public function __construct() {
+    try {
+      $configs = file_get_contents(__DIR__."/../config/token_generator.json");
+      $this->configs(json_decode($configs));
+    } catch (Exception $e) { echo $e->getMessages(); }
+  }
   
-  public static function tokenencrypt($data) {
-     $key = hash('sha256', self::$secretKey);
-     $iv = substr(hash('sha256', self::$secretIv), 0, 16);
-     $result = openssl_encrypt($data, self::$encryptMethod, $key, 0, $iv);
-     return $result= base64_encode($result);
+  public function tokenencrypt($data) {
+    // Génère une chaîne d'octets pseudo-aléatoires.
+    $iv = openssl_random_pseudo_bytes($this->ivlen());
+    // Chiffre les données passées avec la méthode et la 1ére clé de chiffrement
+    $firstEncrypted = openssl_encrypt($data, $this->encryptMethod, $this->firstKey, OPENSSL_RAW_DATA, $iv);
+    //Génère une valeur de clé de hachage en utilisant la méthode HMAC
+    //clé de hashage basé sur la 2eme cles, de l encryptage de $data basé sur la 1er clés
+    $secondEncrypted = hash_hmac('sha256', $firstEncrypted, $this->secondKey, true);
+
+    return base64_encode($iv.$secondEncrypted.$firstEncrypted);
   }
-  public static function tokendecrypt($data) {
-     $key = hash('sha256', self::$secretKey);
-     $iv = substr(hash('sha256', self::$secretIv), 0, 16);
-     $result = openssl_decrypt(base64_decode($data), self::$encryptMethod, $key, 0, $iv);
-     return $result;
+
+  public function tokendecrypt($data): ?String {
+    $mix = base64_decode($data);
+    $iv = substr($mix, 0, $this->ivlen());
+    $secondEncrypted = substr($mix, $this->ivlen(), $this->sha2len);
+    $firstEncrypted = substr($mix, $this->ivlen() + $this->sha2len);
+    $original_data = openssl_decrypt($firstEncrypted, $this->encryptMethod, $this->firstKey, OPENSSL_RAW_DATA, $iv);
+    $secondEncryptedNew = hash_hmac('sha256', $firstEncrypted, $this->secondKey, true);
+    
+    // timing attack safe comparison
+    return hash_equals($secondEncrypted, $secondEncryptedNew) ? $original_data : null;
   }
+
+  /**
+   * @description: Configs initialization
+   * @param \stdClass $configs
+   * @return void
+   */
+  private function configs(\stdClass $configs): void {
+    $this->firstKey = $configs->token_generator->first_key;
+    $this->secondKey = $configs->token_generator->second_key;
+  }
+
+  // Obtient la longueur du vecteur d'initialisation de chiffrement (iv).
+  private function ivlen(): int { return openssl_cipher_iv_length($this->encryptMethod); }
 }
 
 // $access_token = md5(uniqid().rand(1000000, 9999999));

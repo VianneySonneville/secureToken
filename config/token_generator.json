@@ -1,0 +1,6 @@
+{
+  "token_generator": {
+    "first_key": "foo",
+    "second_key": "bar"
+  }
+}
